@@ -48,5 +48,8 @@ So we'll need another DS to relate usernames to userIds.
 ## 27-009 Fetching a Saved Session
 ## 28-010 Creating Sessions
 ## 29-011 Serializing Date Times
+In redis, we need to store time as unix time(it's a number representing time from epoch):
+![](img/29-11-1.png)
+
 ## 30-012 Storing Items
 ## 31-013 Fetching a Single Item
