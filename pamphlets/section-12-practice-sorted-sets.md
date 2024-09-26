@@ -38,7 +38,7 @@ is their id(we could use a hash as well).
 Note: In sorted sets, the score must be a number(float or ...). So how do we store an alphanumeric(string) val as score?
 
 ## 60-004 Kind of Storing Strings in Sorted Sets
-Note: We know hexadecimal values are technically numbers but expressed using base 16 numbering system. These hexadecial values
+Note: We know hexadecimal values are technically numbers but expressed using base 16 numbering system. These hexadecimal values
 are alphanumeric. But we can turn the hexadecimal strings into their equivalent base 10 numbers.
 
 | base 16  |  base 10 |
@@ -49,8 +49,26 @@ So when storing hexadecimals(base 16 numbers) to sorted-set as score, first we c
 reading from redis, convert it to base 16.
 
 ## 61-005 Converting User IDs
+Instead of `usernames` **sorted set**, it was better to use a **hash** and the keys would be usernames and values be userIds as hexadecimal, so
+we wouldn't need any conversion between base 10 and 16(which is what we're doing with sorted set because of score must be a number).
+
+We don't need usernames:unique set because we're storing all usernames inside the usernames sorted set. So we can use sorted
+set to ensure uniqueness of usernames instead of plain set. But we left it there.
+
 ## 62-006 Plan for Showing Most Viewed Items
+The views field is duplicated in the items hash and also in items sorted set. That's not wasteful, because with redis
+we wanna optimize for lookups(query) and we don't want to join data together from different sources.
+![](img/62-1.png)
+
 ## 63-007 Initializing Views on Item Creation
 ## 64-008 Incrementing View Counters
 ## 65-009 Items by Ending Soonest
+endingAt field is duplicated in both `items` and `items:endingAt`.
+
 ## 66-010 Querying for Ending Soonest
+Q: Get two items ending soonest, if current time is 130
+
+```redis
+-- limit <# els to skip> <# els to return>
+zrange items:endingAt 130 +inf byscore limit 0 2
+```

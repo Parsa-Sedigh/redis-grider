@@ -5,6 +5,17 @@ import {usernamesKey, usernamesUniqueKey, usersKey} from "$services/keys";
 
 // we could also use a hash here
 export const getUserByUsername = async (username: string) => {
+    // decimalId is base 10 id of the user
+    const decimalId = await client.zScore(usernamesKey(), username)
+    if (!decimalId) {
+        throw new Error('User does not exist')
+    }
+
+    // convert the id to base 16
+    const id = decimalId.toString(16)
+    const user = await client.hGetAll(usersKey(id))
+
+    return deserialize(id, user)
 };
 
 export const getUserById = async (id: string) => {
