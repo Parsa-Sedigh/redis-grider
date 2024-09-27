@@ -1,6 +1,5 @@
 import {client} from "$services/redis";
-import {itemsKey} from "$services/keys";
-import {itemsViewsKey} from "../../../seeds/seed-keys";
+import {itemsKey, itemsViewsKey} from "$services/keys";
 
 export const incrementView = async (itemId: string, userId: string) => {
     const inserted = await client.pfAdd(itemsViewsKey(itemId), userId)
