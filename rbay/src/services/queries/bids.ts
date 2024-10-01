@@ -1,7 +1,7 @@
 import type {Bid, CreateBidAttrs} from '$services/types';
 import {DateTime} from "luxon";
 import {client} from "$services/redis";
-import {bidHistoryKey} from "$services/keys";
+import {bidHistoryKey, itemsKey} from "$services/keys";
 import {getItem} from "$services/queries/items";
 
 export const createBid = async (attrs: CreateBidAttrs) => {
@@ -21,7 +21,14 @@ export const createBid = async (attrs: CreateBidAttrs) => {
 
     const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis())
 
-    return client.rPush(bidHistoryKey(attrs.itemId), serialized)
+    return Promise.all([
+        client.rPush(bidHistoryKey(attrs.itemId), serialized),
+        client.hSet(itemsKey(item.id), {
+            bids: item.bids + 1,
+            price: attrs.amount,
+
+        })
+    ])
 };
 
 // we wanna show the most RECENT bids. offset = 1, count = 3 means go to the end(right) of the list, skip one item(go to the left)
