@@ -96,11 +96,45 @@ some criteria under which we do the update(HSETNX).
 
 In a lot of cases, we can't use these commands. Because for example maybe we wanna do a rPush.
 
-## 91-007 Transactions
+## 94-007 Transactions
+- groups together one or more commands to run **sequentially**.
+- similar to pipelining, but some big differences!
+- trns can't be undone/rolled back/reversed! (unlike other DBs)
 
+About 1: Usually when we have multiple clients connected to redis sending
+commands to it at the same time, redis is gonna run a command from one client and then command from **another client** and ... .
+So it's gonna process all different commands coming from different clients in different order. When we use a trn, we're telling
+redis that there are a couple of commands we wanna run one after another and nothing else should be executed in between them.
 
-## 91-008 Watching a Key with Transactions
-## 91-009 Isolated Connections for Transactions
-## 91-010 Solving Multiple Bids with a Transaction
-## 91-011 Items by Price
-## 91-012 More on Items b y Price
+About 2: When we use pipelining, there's no guarantee that all those pipelined commands are gonna be executed one after another without
+redis running commands of some other connections in between. So the order of commands of **one client** is the same as provided, but between 
+executing those commands, redis will handle commands of other clients as well. But with trns we're guaranteed redis won't handle other
+clients in the middle of a trn.
+
+The trns in redis are less useful compared to other DBs.
+
+## 95-008 Watching a Key with Transactions
+We use WATCH before starting a trn. The goal of WATCH is to tell redis watch this key and if it's val every changes **before starting**
+the trn, then fail that trn. Failing happens when we run exec and it will return null which means the execution of that trn
+was failed.
+
+For example, we watch key `color` and then after executing watch, some other client updates the color property. Now color has changed.
+The next trn we try to run, is gonna automatically fail.
+
+The trn here will fail:
+```redis
+watch color
+
+-- this will make the trn to fail
+set color blue 
+
+multi
+set color red
+set count 5
+exec
+```
+
+## 96-009 Isolated Connections for Transactions
+## 97-010 Solving Multiple Bids with a Transaction
+## 98-011 Items by Price
+## 99-012 More on Items b y Price
