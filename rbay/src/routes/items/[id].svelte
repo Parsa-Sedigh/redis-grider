@@ -18,7 +18,7 @@
 	let amount = '';
 	let loading = false;
 	let message = '';
-
+    console.log('item: '. item)
 	$: err = amount && '';
 	$: endingAt =
 		typeof item.endingAt === 'object'

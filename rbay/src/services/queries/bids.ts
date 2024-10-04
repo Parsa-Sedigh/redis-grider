@@ -1,34 +1,44 @@
 import type {Bid, CreateBidAttrs} from '$services/types';
 import {DateTime} from "luxon";
 import {client} from "$services/redis";
-import {bidHistoryKey, itemsKey} from "$services/keys";
+import {bidHistoryKey, itemsByPriceKey, itemsKey} from "$services/keys";
 import {getItem} from "$services/queries/items";
 
 export const createBid = async (attrs: CreateBidAttrs) => {
-    const item = await getItem(attrs.itemId)
+    // executeIsolated creates a new conn to redis. isolatedClient is the new conn that we're gonna use only for the trn and nothing else.
+    return client.executeIsolated(async (isolatedClient) => {
+        await isolatedClient.watch(itemsKey(attrs.itemId))
 
-    if (!item) {
-        throw new Error('Item does not exist')
-    }
+        const item = await getItem(attrs.itemId)
 
-    if (item.price >= attrs.amount) {
-        throw new Error('Bid too low')
-    }
+        if (!item) {
+            throw new Error('Item does not exist')
+        }
 
-    if (item.endingAt.diff(DateTime.now()).toMillis() < 0) {
-        throw new Error('Item closed to bidding')
-    }
+        if (item.price >= attrs.amount) {
+            throw new Error('Bid too low')
+        }
 
-    const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis())
+        if (item.endingAt.diff(DateTime.now()).toMillis() < 0) {
+            throw new Error('Item closed to bidding')
+        }
 
-    return Promise.all([
-        client.rPush(bidHistoryKey(attrs.itemId), serialized),
-        client.hSet(itemsKey(item.id), {
-            bids: item.bids + 1,
-            price: attrs.amount,
+        const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis())
 
-        })
-    ])
+        return isolatedClient
+            .multi()
+            .rPush(bidHistoryKey(attrs.itemId), serialized)
+            .hSet(itemsKey(item.id), {
+                bids: item.bids + 1,
+                price: attrs.amount,
+                highestBidUserId: attrs.userId
+            })
+            .zAdd(itemsByPriceKey(), {
+                value: item.id,
+                score: attrs.amount
+            })
+            .exec()
+    })
 };
 
 // we wanna show the most RECENT bids. offset = 1, count = 3 means go to the end(right) of the list, skip one item(go to the left)

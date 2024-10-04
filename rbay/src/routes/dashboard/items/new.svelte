@@ -14,7 +14,7 @@
 			description: desc,
 			duration
 		});
-
+         console.log('error: ', err, 'data: ', data)
 		if (!err) {
 			goto(`/items/${data.id}`);
 		}

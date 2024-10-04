@@ -113,10 +113,15 @@ clients in the middle of a trn.
 
 The trns in redis are less useful compared to other DBs.
 
+**Note: Once commands start executing via EXEC, they cannot be rolled back if an error happens mid-transaction.
+But when using WATCH, if the watched key is changed before EXEC, all of the trn will be aborted and no commands in trn will run.**
+
 ## 95-008 Watching a Key with Transactions
-We use WATCH before starting a trn. The goal of WATCH is to tell redis watch this key and if it's val every changes **before starting**
-the trn, then fail that trn. Failing happens when we run exec and it will return null which means the execution of that trn
-was failed.
+We use WATCH before starting a trn. If, after WATCH but before you execute the transaction with `EXEC`, another connection modifies any of
+the watched keys, Redis will detect that the key has been changed.
+
+When you finally call EXEC to execute the transaction, Redis will check if any of the watched keys were modified by another connection.
+If any watched key was modified, EXEC will fail, and none of the queued commands will be executed. The transaction is aborted, and you'll need to retry if necessary.
 
 For example, we watch key `color` and then after executing watch, some other client updates the color property. Now color has changed.
 The next trn we try to run, is gonna automatically fail.
@@ -133,8 +138,36 @@ set color red
 set count 5
 exec
 ```
+![](img/95-1.png)
 
 ## 96-009 Isolated Connections for Transactions
+![](img/96-1.png)
+
+The trn here will fail:
+![](img/96-2.png)
+
+Concurrency issue: read some val, change it and save it. In other words, whenever we fetch data, allow some time to pass and then
+save that data back. The issue is that while that time is passing, some other req might have caused the data to change.
+
+Note: Currently, our node server(redis client) is using one single conn for all the commands to execute regardless of what req is coming in.
+So it be serving 20 different reqs at the same time and they're all issuing commands against the **exact same conn** to redis server.
+
+But when we use trns(anytime WATCH or MULTI is run), we're hijacking that redis conn and that conn should only be used for this trn
+and nothing else whatsover. So one common pattern is:
+
+We're gonna have one conn that's being used on node server for any typical(non-trn) command. But as soon as node server gets a req
+that's gonna need a trn, we're gonna create a new conn just for that trn. Do the trn and then close that created conn.
+![](img/96-3.png)
+
 ## 97-010 Solving Multiple Bids with a Transaction
+Now if you issue multiple reqs for creating bid very fast, we only see one single bid succeeded and others will get error.
+So the concurrency issue is solved using trn with `WATCH`.
+
 ## 98-011 Items by Price
+To have a list of most expensive items:
+
+- create a sorted set with key: items:price
+- on item create -> add itemId to sorted set with score of 0
+- on bid create -> update score in sorted set(actually add the item again with score equal to it's bid amount)
+
 ## 99-012 More on Items b y Price
