@@ -162,7 +162,29 @@ The lua script we're gonna write says: is the lock token here still what it was 
 ## 122-011 Adding an Unlock Script
 
 ## 123-012 One Last Issue
+The entire looking mechanism revolves around this idea of just setting some value at a key. There's no actual locking of data occurring here.
+There's nothing that is inherently prevent a write to that item being locked.
+We're just following some kind of convention for deciding when it's safe to write to that hash and when it's not.
+
+Let's say the commands inside withLock() take a lot of time to run. The lock will be automatically released by using PX.
+Now the callback(commands inside withLock()) finishes and wants to write the data back to the item that was locked.
+It can do that although it has not acquired the lock anymore. Nothing is preventing it from doing that.
+
+You see `Write data!` block is done even though the lock is released earlier.
+![](img/123-1.png)
+
+So as soon as the cb() is called, we don't have any control after that point, whoever put code into the cb(), is in control of the game.
+
+So other process can acquire the lock, but this process is still doing work and will write some data even though the lock is
+acquired by some other p.
 
 ## 124-013 Providing Expiration Signals
+**Problem is: Continuing execution of commands inside withLock() even when the lock is expired.**
+
+With this solution, we're assuming other devs are gonna use the signal obj correctly. So before writing any data to the locked data,
+they're gonna check the signal. But there's no guarantee that they use it. We can solve this issue by using a js proxy to intercept
+the calls made in the callback and check if the lock is expired.
 
 ## 125-014 Alternate Expiration Solution
+With this solution, we don't need to rely on other devs using that manual check of the signal before any writes to data.
+We throw err as soon as the lock expires.

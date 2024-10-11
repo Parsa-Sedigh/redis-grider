@@ -1,7 +1,9 @@
 import {randomBytes} from "crypto";
 import {client} from "$services/redis/client";
 
-export const withLock = async (key: string, cb: () => any) => {
+const timeoutMs = 2000
+
+export const withLock = async (key: string, cb: (redisClient: Client, signal: any) => any) => {
     // Initialize a few variables to control retry behavior
     const retryDelayMs = 100
     let retries = 20
@@ -20,7 +22,7 @@ export const withLock = async (key: string, cb: () => any) => {
         // try to do a SET NX operation
         const acquired = await client.set(lockKey, token, {
             NX: true,
-            PX: 2000
+            PX: timeoutMs
         })
 
         if (!acquired) {
@@ -32,7 +34,14 @@ export const withLock = async (key: string, cb: () => any) => {
 
         // IF the SET is successful, then run the callback
         try {
-            return await cb()
+            const signal = {expired: false}
+            setTimeout(() => {
+                signal.expired = true
+            }, timeoutMs)
+
+            const proxiedClient = buildClientProxy(timeoutMs)
+
+            return await cb(proxiedClient, signal)
         } finally {
             // if anything succeeds or goes wrong, this block is called
             // unset the locked key:
@@ -44,7 +53,27 @@ export const withLock = async (key: string, cb: () => any) => {
     }
 };
 
-const buildClientProxy = () => {
+type Client = typeof client
+
+const buildClientProxy = (timeoutMs: number) => {
+    const startTime = Date.now()
+
+    /* anytime someone tries to use a method on the redis client, we check if the lock has expired. If it has, we're gonna
+     throw an err. If not, call the method they wanted to call.*/
+    const handler = {
+        get(target: Client, prop: keyof Client) {
+            // is someone trying to access any property on the redis client after the expiration time of the lock
+            if (Date.now() >= startTime + timeoutMs) {
+                throw new Error('Lock has expired.')
+            }
+
+            const value = target[prop]
+
+            return typeof value == 'function' ? value.bind(target) : value
+        }
+    }
+
+    return new Proxy(client, handler) as Client
 };
 
 const pause = (duration: number) => {

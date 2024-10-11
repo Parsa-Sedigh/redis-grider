@@ -47,40 +47,44 @@ export const createBid = async (attrs: CreateBidAttrs) => {
     // })
 
     // Approach 2: using lock
-    return withLock(attrs.itemId, async () => {
-        // executeIsolated creates a new conn to redis. isolatedClient is the new conn that we're gonna use only for the trn and nothing else.
-        return client.executeIsolated(async (isolatedClient) => {
-            await isolatedClient.watch(itemsKey(attrs.itemId))
+    // note: lockedClient is proxied version of redis client which throws an err if someone tries to use the
+    // client after the lock has expired
+    return withLock(attrs.itemId, async (lockedClient: typeof client, signal: any) => {
+        const item = await getItem(attrs.itemId)
 
-            const item = await getItem(attrs.itemId)
+        if (!item) {
+            throw new Error('Item does not exist')
+        }
 
-            if (!item) {
-                throw new Error('Item does not exist')
-            }
+        if (item.price >= attrs.amount) {
+            throw new Error('Bid too low')
+        }
 
-            if (item.price >= attrs.amount) {
-                throw new Error('Bid too low')
-            }
+        if (item.endingAt.diff(DateTime.now()).toMillis() < 0) {
+            throw new Error('Item closed to bidding')
+        }
 
-            if (item.endingAt.diff(DateTime.now()).toMillis() < 0) {
-                throw new Error('Item closed to bidding')
-            }
+        const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis())
 
-            const serialized = serializeHistory(attrs.amount, attrs.createdAt.toMillis())
+        // before doing any writes to the locked data, check if the lock is expired or not
+        if (signal.expired) {
+            throw new Error('Lock expired, cant write any more data')
+        }
 
-            return Promise.all([
-                client.rPush(bidHistoryKey(attrs.itemId), serialized),
-                client.hSet(itemsKey(item.id), {
-                    bids: item.bids + 1,
-                    price: attrs.amount,
-                    highestBidUserId: attrs.userId
-                }),
-                client.zAdd(itemsByPriceKey(), {
-                    value: item.id,
-                    score: attrs.amount
-                })
-            ])
-        })
+        // by using lockedClient, if the lock has expired before using the lockedClient, it will throw an err. This makes sure
+        // nothing will be written to the data after the lock has expired.
+        return Promise.all([
+            lockedClient.rPush(bidHistoryKey(attrs.itemId), serialized),
+            lockedClient.hSet(itemsKey(item.id), {
+                bids: item.bids + 1,
+                price: attrs.amount,
+                highestBidUserId: attrs.userId
+            }),
+            lockedClient.zAdd(itemsByPriceKey(), {
+                value: item.id,
+                score: attrs.amount
+            })
+        ])
     })
 };
 
