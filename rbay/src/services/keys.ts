@@ -17,3 +17,4 @@ export const itemsByEndingAtKey = () => `items:endingAt`
 export const itemsViewsKey = (itemId: string) => `items:views#${itemId}` // points to hyperloglog
 export const bidHistoryKey = (itemId: string) => `history#${itemId}`
 export const itemsByPriceKey = () => `items:price` // points to sorted set
+export const itemsIndexKey = () => `idx:items` // points to search index
