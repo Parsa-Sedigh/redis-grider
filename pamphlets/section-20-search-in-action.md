@@ -82,6 +82,19 @@ If we used parentheses:
 ![](./img/148-1.png)
 
 ## 149-011 Sorting and Searching
+### Searching + sorting
+- redisearch can sort search results(we don't have to use `SORT` command)
+- field that you plan to sort by, need to be marked as `SORTABLE` when index is created
+- sorting can only be done by one field at a time
+
+![](./img/149-1.png)
+
 ## 150-012 Updating an Existing Index
+Whenever we want to make a change to an index, we can only **add** fields to it, we can't remove or change existing fields.
+To change an index, we have to manually delete and recreate it.
+```redis
+ft.dropindex idx:items
+```
+
 ## 151-013 Executing the Search
 ## 152-014 Deserializing Search Results
