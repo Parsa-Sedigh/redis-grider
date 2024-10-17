@@ -121,5 +121,15 @@ So this handles the problem that the consumer receives the msg but failed to pro
 We almost always use consumer groups.
 
 ## 162-011 Creating and Inspecting Consumer Groups
+We can create a consumer group for either a new stream or an existing stream. If we make a consumer group for an existing stream,
+we need to decide what we want to do about all the msgs that already exist inside of stream. We can specify an id in `xgroup create`
+which means: create this group and consume all msgs from this id forward to not been processed by this group(so this group will
+consume those).
+![](./img/162-1.png)
+
+To create a consumer and attach it to a group:
+![](./img/162-2.png)
+![](./img/162-3.png)
+
 ## 163-012 Consumer Groups in Action
 ## 164-013 Claiming Expired Messages
