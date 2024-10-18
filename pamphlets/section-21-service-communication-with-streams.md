@@ -16,7 +16,7 @@ When the consumer reads a msg, it's not deleted from the original stream.
 ![](./img/153-1.png)
 
 ### Primary use case of streams
-**Job processing flow**
+**Job(work) processing flow**
 
 Producer sent a DS(msg) to a stream and the msgs are consumed by consumers(workers).
 
