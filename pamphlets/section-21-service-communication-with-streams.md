@@ -132,4 +132,36 @@ To create a consumer and attach it to a group:
 ![](./img/162-3.png)
 
 ## 163-012 Consumer Groups in Action
+![](./img/163-1.png)
+
+example: Before running the command, we have:
+![](./img/163-2.png)
+
+In xreadgroup, we're saying: give us(worker-1) the first msg that has not been delivered yet to this consumer group.
+Then redis internally is gonna look at stream log, it sees that last delivered id of this consumer group is nothing. So it sends the
+first ever msg of stream to worker-1. After sending it to worker-1, redis will immediately update the stream log.
+Now worker-1 has ownership of msg with id 10-0. Now msg is in pending state.
+
+Note: Every msg has to be acked by the worker at some point in time. Otherwise, redis will wait for the msg to be processed by that worker.
+The msg will be considered as a pending msg(not acked yet).
+
+Note: Consumer groups don't affect the stream itself(they can't delete the msgs in the stream), they only affect the stream log.
+
+Now if worker-2, do an xreadgroup, redis looks at last delivered id, it's 10-0, therefore, it will send msg with id 20-0 to worker-2
+and also will update it's stream log and last delivered id.
+![](./img/163-3.png)
+
 ## 164-013 Claiming Expired Messages
+How acking a msg works?
+
+Note: the idea behind acking is handling the case in which redis sends a msg to a worker and then that worker crashes before
+processing the msg.
+
+![](./img/164-1.png)
+
+Q: So how do we fix the case where worker crashes before processing and sending an ack? How do we assign the msg to another worker?
+
+A: Use `xautoclaim`. This command takes a look at all pending msgs for a specific amount if time and then assign those msgs to the
+specified worker.
+
+![](./img/164-2.png)
